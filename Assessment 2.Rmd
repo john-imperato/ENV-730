@@ -5,3 +5,76 @@ date: "2024-09-13"
 ---
 
 # Assessment 2 
+
+Write a 3-page report on the distribution of tower sites discussing the strengths and weakness of the current tower representation. Please create 2 visualizations. You are welcome to use any additional data.
+
+
+Weakness: continental/hemispherical representation.
+  Figure: 
+  
+Strength: forest density represented well? Most forested land is in the global north. 
+  Figure: map global forests with the stations. 
+
+
+Load libraries
+
+```{r}
+
+library(sf)
+library(AOI)
+library(ggplot2)
+library(tidyverse)
+
+```
+
+
+Load data
+
+```{r}
+
+FluxNet <- read.csv('FluxNet_Sites_2024.csv')
+
+```
+
+```{r}
+
+aoi.terrestrial <- aoi_get(country= c("Europe","Asia" ,"North America", "South America", "Australia","Africa", "New Zealand")) %>%
+st_transform( '+init=epsg:4326' )
+
+# Remove rows where LOCATION_LAT or LOCATION_LONG are empty strings or NA
+FluxNet <- FluxNet[!(FluxNet$LOCATION_LAT == "" | 
+                     FluxNet$LOCATION_LONG == "" | 
+                     is.na(FluxNet$LOCATION_LAT) | 
+                     is.na(FluxNet$LOCATION_LONG)), ]
+
+# Add column for separating northern from southern hemisphere towers
+FluxNet$Hemisphere <- as.factor(ifelse(FluxNet$LOCATION_LAT > 0, "Northern", "Southern"))
+
+# Counts of number of towers in each hemisphere
+hemisphere_counts <- table(FluxNet$Hemisphere)
+n_northern <- hemisphere_counts["Northern"]
+n_southern <- hemisphere_counts["Southern"]
+
+# Convert the data frame to an sf object
+FluxNetTowers <- st_as_sf(FluxNet,
+                          coords = c("LOCATION_LONG", "LOCATION_LAT"),
+                          crs = "+init=epsg:4326")
+
+
+ggplot() +
+  geom_sf(data = aoi.terrestrial) +
+  geom_sf(data = FluxNetTowers,
+          aes(color = Hemisphere),
+          size = 1) +
+  scale_color_manual(values = c("blue", "red")) +
+  theme_minimal() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 0.5) +
+  annotate("text", x = -140, y = 10, label = paste("n = ", n_northern), size = 5, color = "blue", fontface = "bold") +
+  annotate("text", x = -140, y = -10, label = paste("n =", n_southern), size = 5, color = "red", fontface = "bold") +
+  ggtitle("FluxNet Tower Distribution by Hemisphere") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+
+```
+
+
