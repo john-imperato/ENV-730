@@ -1,0 +1,60 @@
+---
+title: "ENV 730 - Assessment 1"
+output: html_document
+date: "2024-09-09"
+---
+
+# Assessment 1
+## Create a generic function that can convert from ppm, Pg C, Gt C, or Mt C to Gt_C. Use Table 1 in Friedlingstein et al., (2023). Upload your script for review.
+
+![Table 1 - Friedlingstein et al. (2023)](Table 1.png)
+ 
+## One solution, using 'if-else-if'.
+ 
+```{r}
+
+convert_to_GT_C <- function(x, unit_from) {
+  if (unit_from == "ppm") {
+    return(x * 2.124)
+  } else if (unit_from == "MtC") {
+    return(x * 1000)
+  } else if (unit_from == "GT_CO2") {
+    return(x / 3.664)
+  } else if (unit_from == "Pg_C") {
+    return(x)
+  } else {
+    stop("Error: Unsupported unit. Use 'ppm', 'MtC', 'GT_CO2', or 'Pg_C'.")
+  }
+}
+
+```
+
+
+## Another solution, using the switch() function
+
+```{r}
+
+Convert_to_Gt_C <- function(x, unit_from){
+  switch(unit_from,
+         "ppm" = x * 2.124,
+         "MtC" = x * 1000,
+         "Gt_CO2" = x / 3.664,
+         "Pg_C" = x,
+         stop("Error: Unsupported unit. Use 'ppm', 'MtC', 'GT_CO2', or 'Pg_C'."))
+}
+
+```
+
+## Checks
+
+```{r}
+
+Convert_to_Gt_C(418, "ppm")
+
+Convert_to_Gt_C(2203, "Pg_C")
+
+Convert_to_Gt_C(189, "Gt_CO2")
+
+Convert_to_Gt_C(11029485592048583, "g")
+
+```
