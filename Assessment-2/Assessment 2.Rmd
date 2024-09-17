@@ -12,8 +12,8 @@ Write a 3-page report on the distribution of tower sites discussing the strength
 Weakness: continental/hemispherical representation.
   Figure: 
   
-Strength: forest density represented well? Most forested land is in the global north. 
-  Figure: map global forests with the stations. 
+Strength:  
+  Figure:  
 
 
 Load libraries
@@ -24,6 +24,7 @@ library(sf)
 library(AOI)
 library(ggplot2)
 library(tidyverse)
+library(lwgeom)
 
 ```
 
@@ -36,8 +37,12 @@ FluxNet <- read.csv('FluxNet_Sites_2024.csv')
 
 ```
 
+
+### Plot FLuxNet towers by hemisphere (N&S)
+
 ```{r}
 
+# Make an object with AOI polygons for all terrestrial land area, as in workshop 2
 aoi.terrestrial <- aoi_get(country= c("Europe","Asia" ,"North America", "South America", "Australia","Africa", "New Zealand")) %>%
 st_transform( '+init=epsg:4326' )
 
@@ -47,10 +52,10 @@ FluxNet <- FluxNet[!(FluxNet$LOCATION_LAT == "" |
                      is.na(FluxNet$LOCATION_LAT) | 
                      is.na(FluxNet$LOCATION_LONG)), ]
 
-# Add column for separating northern from southern hemisphere towers
+# Add column identifying northern and southern hemisphere towers
 FluxNet$Hemisphere <- as.factor(ifelse(FluxNet$LOCATION_LAT > 0, "Northern", "Southern"))
 
-# Counts of number of towers in each hemisphere
+# Count of number of towers in each hemisphere
 hemisphere_counts <- table(FluxNet$Hemisphere)
 n_northern <- hemisphere_counts["Northern"]
 n_southern <- hemisphere_counts["Southern"]
@@ -60,7 +65,7 @@ FluxNetTowers <- st_as_sf(FluxNet,
                           coords = c("LOCATION_LONG", "LOCATION_LAT"),
                           crs = "+init=epsg:4326")
 
-
+# Plot the terrestrial AOI polygons and FLuxNet towers by hemisphere
 ggplot() +
   geom_sf(data = aoi.terrestrial) +
   geom_sf(data = FluxNetTowers,
@@ -74,7 +79,13 @@ ggplot() +
   ggtitle("FluxNet Tower Distribution by Hemisphere") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 
-
 ```
 
+### Calculate land area by hemisphere
+
+```{r}
+
+
+
+```
 
