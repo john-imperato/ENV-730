@@ -1,21 +1,24 @@
 ---
 title: "ENV 730 Assessment 2/3"
 author: "John Imperato"
-format: docx
+format: html
 editor: visual
 ---
 
+### The Assignment:
 Write a 3-page report on the distribution of tower sites discussing the strengths and weakness of the current tower representation. Please create two visualizations. You are welcome to use any additional data. This assessment combines skills from Simple Features and Introduction to terra (Rasters) and is due in two weeks.
 
-In the spirit of Professor Malone's work and the focus of this class, I will be assessing the strangths and weaknesses of FLuxNet tower distribution for those that measure Methans (CH4).
+### Notes
+I limit my analysis to FluxNet towers that measure methane (CH4).
 
-Possible strengths: is the full range of temps and precip pretty well covered? \* look at the full range on Earth then look at the range covered by the towers.
+### Arguments
 
-Possible weaknesses: representation within each category of the range.
+**Strengths**
 
-### Load Packages
 
-```{r}
+**Weaknesses**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 
 library(terra)
 library(remotes)
@@ -30,11 +33,13 @@ library(viridis)
 
 ```
 
-### Get Data
+### Data Sourcing
 
-Load the data I need to do my analyses. I use continent/country polygon shapefiles from the AOI package, FluxNet tower data from this course's Canvas page, and climate data from TerraClimate.
+* Global continent polygons are from the AOI package
+* FluxNet tower data are from the ENV 730 Canvas page
+* Climate data are from TerraClimate
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 
 # Global polygons
 aoi.global <- aoi_get(country= c("Europe","Asia" ,"North America", "South America", "Australia","Africa", "New Zealand"))
@@ -55,10 +60,6 @@ normals.ppt <- rast("/Users/johnimperato/ENV730/normals_ppt.tif")
 normals.tmax <- rast("/Users/johnimperato/ENV730/normals_tmax.tif")
 normals.tmin <- rast("/Users/johnimperato/ENV730/normals_tmin.tif")
 
-plot(normals.tmin)
-plot(normals.tmax)
-plot(normals.ppt)
-
 # FluxNet
 FLUXNET <- read.csv('FluxNet_Sites_2024.csv')
 FLUXNET.CH4.1 <- FLUXNET %>% filter(FLUXNET.CH4 != "")
@@ -69,7 +70,7 @@ FLUXNET.CH4 <- st_as_sf(x = FLUXNET.CH4.1, coords = c("LOCATION_LONG", "LOCATION
 
 ## Precipitation
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 
 # create global annual precip raster layer 
 normals.ppt.annual <- normals.ppt %>% sum(na.rm = T)
@@ -86,7 +87,7 @@ ggplot() +
 
 ### Compare global precipitation range to the range of CH4-sensing FLuxNet towers
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 
 # Extract raster values to points (annual precipitation at FLUXNET tower points)
 towers.ppt.values <- terra::extract(normals.ppt.annual, FLUXNET.CH4)
@@ -111,10 +112,9 @@ ggplot(ppt_compare, aes(x = group, y = value, fill = group)) +
 
 ```
 
+## Maximum Temperature
 
-## Maximum Temperature 
-
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 
 # Create global average annual max temperature raster layer
 normals.tmax.annual <- normals.tmax %>% max(na.rm = TRUE)
@@ -148,9 +148,10 @@ ggplot(tmax_compare, aes(x = group, y = value, fill = group)) +
   theme_minimal()
 
 ```
+
 ## Minimum Temperature
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 
 # Create global average annual min temperature raster layer
 normals.tmin.annual <- normals.tmin %>% min(na.rm = TRUE)
