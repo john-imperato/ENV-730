@@ -1,0 +1,187 @@
+---
+title: "ENV 730 Assessment 2/3"
+author: "John Imperato"
+format: docx
+editor: visual
+---
+
+Write a 3-page report on the distribution of tower sites discussing the strengths and weakness of the current tower representation. Please create two visualizations. You are welcome to use any additional data. This assessment combines skills from Simple Features and Introduction to terra (Rasters) and is due in two weeks.
+
+In the spirit of Professor Malone's work and the focus of this class, I will be assessing the strangths and weaknesses of FLuxNet tower distribution for those that measure Methans (CH4).
+
+Possible strengths: is the full range of temps and precip pretty well covered? \* look at the full range on Earth then look at the range covered by the towers.
+
+Possible weaknesses: representation within each category of the range.
+
+### Load Packages
+
+```{r}
+
+library(terra)
+library(remotes)
+library(tidyverse)
+library(AOI)
+library(climateR)
+library(sf)
+library(tidyterra)
+library(ggplot2)
+library(tidyterra)
+library(viridis)
+
+```
+
+### Get Data
+
+Load the data I need to do my analyses. I use continent/country polygon shapefiles from the AOI package, FluxNet tower data from this course's Canvas page, and climate data from TerraClimate.
+
+```{r}
+
+# Global polygons
+aoi.global <- aoi_get(country= c("Europe","Asia" ,"North America", "South America", "Australia","Africa", "New Zealand"))
+
+# Climate data (precipitation, min and max temperature)
+# normals.ppt <- aoi.global  %>% getTerraClimNormals(varname ="ppt")
+# normals.tmin <- aoi.global %>% getTerraClimNormals(var = "tmin")
+# normals.tmax <- aoi.global %>% getTerraClimNormals(var = "tmax")
+
+# Save the rasters locally so I don't have to keep downloading them
+# dir_path <- "/Users/johnimperato/ENV730/"
+# writeRaster(normals.ppt$ppt, filename = paste0(dir_path, "normals_ppt.tif"), overwrite = TRUE)
+# writeRaster(normals.tmin$tmin, filename = paste0(dir_path, "normals_tmin.tif"), overwrite = TRUE)
+# writeRaster(normals.tmax$tmax, filename = paste0(dir_path, "normals_tmax.tif"), overwrite = TRUE)
+
+# Access raster data from local drive
+normals.ppt <- rast("/Users/johnimperato/ENV730/normals_ppt.tif")
+normals.tmax <- rast("/Users/johnimperato/ENV730/normals_tmax.tif")
+normals.tmin <- rast("/Users/johnimperato/ENV730/normals_tmin.tif")
+
+plot(normals.tmin)
+plot(normals.tmax)
+plot(normals.ppt)
+
+# FluxNet
+FLUXNET <- read.csv('FluxNet_Sites_2024.csv')
+FLUXNET.CH4.1 <- FLUXNET %>% filter(FLUXNET.CH4 != "")
+FLUXNET.CH4 <- st_as_sf(x = FLUXNET.CH4.1, coords = c("LOCATION_LONG", "LOCATION_LAT"), 
+           crs = "+init=epsg:4326")
+
+```
+
+## Precipitation
+
+```{r}
+
+# create global annual precip raster layer 
+normals.ppt.annual <- normals.ppt %>% sum(na.rm = T)
+
+# Plot new raster with fluxnet towers and global AOI polygons
+  # visualize the global distribution of CH4-sensing FluxNet towers and global annual precipitation normals
+ggplot() + 
+  geom_spatraster( data=normals.ppt.annual) + 
+  geom_sf(data = FLUXNET.CH4, color = "red", size = 1.5, pch = 4) +
+  scale_fill_viridis_c(option = "H") +
+  theme_minimal()
+
+```
+
+### Compare global precipitation range to the range of CH4-sensing FLuxNet towers
+
+```{r}
+
+# Extract raster values to points (annual precipitation at FLUXNET tower points)
+towers.ppt.values <- terra::extract(normals.ppt.annual, FLUXNET.CH4)
+
+# Combine global and tower data into one data frame
+ppt_compare <- data.frame(
+  value = c(values(normals.ppt.annual, na.rm = TRUE), towers.ppt.values[, 2]),
+  group = rep(c("Global", "FluxNet CH4 Towers"), times = c(length(values(normals.ppt.annual, na.rm = TRUE)), nrow(towers.ppt.values)))
+)
+
+# Create a plot to visualize the distributions of global precip values vs precip values covered by CH4-sensing tower sites 
+# I found this thing called a "violin plot" that, I believe, visualizes the data effectively. 
+ggplot(ppt_compare, aes(x = group, y = value, fill = group)) +
+  geom_violin(alpha = 0.5) +
+  scale_fill_manual(values = c("blue", "red")) +
+  labs(
+    title = "Comparison of Global vs FluxNet Tower Annual Precipitation",
+    x = "Group",
+    y = "Annual Precipitation (mm)"
+  ) +
+  theme_minimal()
+
+```
+
+
+## Maximum Temperature 
+
+```{r}
+
+# Create global average annual max temperature raster layer
+normals.tmax.annual <- normals.tmax %>% max(na.rm = TRUE)
+
+# Plot new raster with fluxnet towers and global AOI polygons
+ggplot() + 
+  geom_spatraster(data = normals.tmax.annual) + 
+  geom_sf(data = FLUXNET.CH4, color = "red", size = 1.5, pch = 4) +
+  scale_fill_viridis_c(option = "H") +
+  labs(title = "Global Annual Max Temperature with FluxNet Towers", x = "Longitude", y = "Latitude") +
+  theme_minimal()
+
+# Extract raster values to points (annual max temperature at FLUXNET tower points)
+towers.tmax.values <- terra::extract(normals.tmax.annual, FLUXNET.CH4)
+
+# Combine global and tower data into one data frame
+tmax_compare <- data.frame(
+  value = c(values(normals.tmax.annual, na.rm = TRUE), towers.tmax.values[, 2]),
+  group = rep(c("Global", "FluxNet CH4 Towers"), times = c(length(values(normals.tmax.annual, na.rm = TRUE)), nrow(towers.tmax.values)))
+)
+
+# Create a violin plot to visualize the distributions of global max temp values vs tower max temp values
+ggplot(tmax_compare, aes(x = group, y = value, fill = group)) +
+  geom_violin(alpha = 0.5) +
+  scale_fill_manual(values = c("blue", "red")) +
+  labs(
+    title = "Comparison of Global vs FluxNet Tower Annual Max Temperature",
+    x = "Group",
+    y = "Annual Max Temperature (°C)"
+  ) +
+  theme_minimal()
+
+```
+## Minimum Temperature
+
+```{r}
+
+# Create global average annual min temperature raster layer
+normals.tmin.annual <- normals.tmin %>% min(na.rm = TRUE)
+
+# Plot new raster with fluxnet towers and global AOI polygons
+ggplot() + 
+  geom_spatraster(data = normals.tmin.annual) + 
+  geom_sf(data = FLUXNET.CH4, color = "red", size = 1.5, pch = 4) +
+  scale_fill_viridis_c(option = "H") +
+  labs(title = "Global Annual Min Temperature with FluxNet Towers", x = "Longitude", y = "Latitude") +
+  theme_minimal()
+
+# Extract raster values to points (annual min temperature at FLUXNET tower points)
+towers.tmin.values <- terra::extract(normals.tmin.annual, FLUXNET.CH4)
+
+# Combine global and tower data into one data frame
+tmin_compare <- data.frame(
+  value = c(values(normals.tmin.annual, na.rm = TRUE), towers.tmin.values[, 2]),
+  group = rep(c("Global", "FluxNet CH4 Towers"), times = c(length(values(normals.tmin.annual, na.rm = TRUE)), nrow(towers.tmin.values)))
+)
+
+# Create a violin plot to visualize the distributions of global min temp values vs tower min temp values
+ggplot(tmin_compare, aes(x = group, y = value, fill = group)) +
+  geom_violin(alpha = 0.5) +
+  scale_fill_manual(values = c("blue", "red")) +
+  labs(
+    title = "Comparison of Global vs FluxNet Tower Annual Min Temperature",
+    x = "Group",
+    y = "Annual Min Temperature (°C)"
+  ) +
+  theme_minimal()
+
+
+```
