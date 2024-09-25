@@ -1,0 +1,275 @@
+---
+title: "Assessment 4 Bonus: Climate Comparison of Acadia and Zion National Parks"
+output: html_document
+date: "2024-09-25"
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+library(terra)
+library(remotes)
+library(tidyverse)
+library(AOI)
+library(climateR)
+library(sf)
+library(tidyterra)
+library(ggplot2)
+library(viridis)
+library(ggpubr)
+library(ggspatial)
+library(exactextractr)
+library(patchwork)
+
+```
+
+## Get Boundary polygons for ANP and ZNP
+
+```{r message=FALSE, warning=FALSE}
+# Read the NPS boundary shapefile
+nps <- st_read('nps_boundary.shp')
+
+# Extract Acadia National Park (ANP) polygon
+ANP <- nps[nps$UNIT_NAME == 'Acadia National Park', ]
+ANP <- st_transform(ANP, crs = "EPSG:4326")
+
+# Extract Zion National Park (ZNP) polygon
+ZNP <- nps[nps$UNIT_NAME == 'Zion National Park', ]
+ZNP <- st_transform(ZNP, crs = "EPSG:4326")
+
+```
+
+
+## Download Climate Nornals for ANP and ZNP
+
+and calculate total annual precipitation, mean maximum temperature, and mean minimum temperature for each park. 
+
+```{r message=FALSE, warning=FALSE}
+# Download climate normals for ANP
+ANP_normals <- getTerraClimNormals(AOI = ANP, varname = c("ppt", "tmax", "tmin"))
+
+# Calculate Total Annual Precipitation
+ANP_TAP <- sum(ANP_normals$ppt)
+
+# Calculate Mean Annual Maximum Temperature
+ANP_mean_tmax <- mean(ANP_normals$tmax)
+
+# Calculate Mean Annual Minimum Temperature
+ANP_mean_tmin <- mean(ANP_normals$tmin)
+
+# Reproject raster data to match ANP CRS
+ANP_TAP <- project(ANP_TAP, "EPSG:4326")
+ANP_mean_tmax <- project(ANP_mean_tmax, "EPSG:4326")
+ANP_mean_tmin <- project(ANP_mean_tmin, "EPSG:4326")
+
+###############################################################################
+
+# Download climate normals for ZNP
+ZNP_normals <- getTerraClimNormals(AOI = ZNP, varname = c("ppt", "tmax", "tmin"))
+
+# Calculate Total Annual Precipitation
+ZNP_TAP <- sum(ZNP_normals$ppt)
+
+# Calculate Mean Annual Maximum Temperature
+ZNP_mean_tmax <- mean(ZNP_normals$tmax)
+
+# Calculate Mean Annual Minimum Temperature
+ZNP_mean_tmin <- mean(ZNP_normals$tmin)
+
+# Reproject raster data to match ZNP CRS
+ZNP_TAP <- project(ZNP_TAP, "EPSG:4326")
+ZNP_mean_tmax <- project(ZNP_mean_tmax, "EPSG:4326")
+ZNP_mean_tmin <- project(ZNP_mean_tmin, "EPSG:4326")
+
+```
+
+
+## Update: Interpoaltion and Resampling
+
+Use bilinear interpolation to resample the climate rasters at a finer resolution.
+
+This aligns the raster data more precisely with the park boundary polygons for more accurate masking and analysis. 
+
+```{r message=FALSE, warning=FALSE}
+
+# Resample and Mask for ANP
+
+# Define a finer resolution (adjust as needed)
+finer_res <- 0.001  # Degrees; adjust based on your computational capacity
+
+# Create a new raster template with the finer resolution
+template_ANP <- rast(
+  xmin = xmin(ANP_TAP),
+  xmax = xmax(ANP_TAP),
+  ymin = ymin(ANP_TAP),
+  ymax = ymax(ANP_TAP),
+  resolution = finer_res,
+  crs = crs(ANP_TAP)
+)
+
+# Resample the raster data
+ANP_TAP_resampled <- resample(ANP_TAP, template_ANP, method = "bilinear")
+ANP_tmax_resampled <- resample(ANP_mean_tmax, template_ANP, method = "bilinear")
+ANP_tmin_resampled <- resample(ANP_mean_tmin, template_ANP, method = "bilinear")
+
+# Mask the resampled raster data with the ANP polygon
+exact_ANP_TAP <- mask(ANP_TAP_resampled, vect(ANP))
+exact_ANP_tmax <- mask(ANP_tmax_resampled, vect(ANP))
+exact_ANP_tmin <- mask(ANP_tmin_resampled, vect(ANP))
+
+################################################################################
+
+# Resample and Mask for ZNP
+
+# Create a new raster template with the finer resolution
+template_ZNP <- rast(
+  xmin = xmin(ZNP_TAP),
+  xmax = xmax(ZNP_TAP),
+  ymin = ymin(ZNP_TAP),
+  ymax = ymax(ZNP_TAP),
+  resolution = finer_res,
+  crs = crs(ZNP_TAP)
+)
+
+# Resample the raster data
+ZNP_TAP_resampled <- resample(ZNP_TAP, template_ZNP, method = "bilinear")
+ZNP_tmax_resampled <- resample(ZNP_mean_tmax, template_ZNP, method = "bilinear")
+ZNP_tmin_resampled <- resample(ZNP_mean_tmin, template_ZNP, method = "bilinear")
+
+# Mask the resampled raster data with the ZNP polygon
+exact_ZNP_TAP <- mask(ZNP_TAP_resampled, vect(ZNP))
+exact_ZNP_tmax <- mask(ZNP_tmax_resampled, vect(ZNP))
+exact_ZNP_tmin <- mask(ZNP_tmin_resampled, vect(ZNP))
+
+```
+
+## Update: 
+### a different (bettter?) way to extract raster values over polygons
+
+The exact_extract() function of the exactextractr package in R is designed to extract raster values over polygons, accounting for the exact area of overlap between raster cells and polygons. 
+
+```{r message=FALSE, warning=FALSE}
+
+# Calculate mean values within ANP using exactextractr
+ANP_TAP_exact_mean <- exact_extract(ANP_TAP, ANP, 'mean')
+ANP_tmax_exact_mean <- exact_extract(ANP_mean_tmax, ANP, 'mean')
+ANP_tmin_exact_mean <- exact_extract(ANP_mean_tmin, ANP, 'mean')
+
+# Calculate mean values within ZNP using exactextractr
+ZNP_TAP_exact_mean <- exact_extract(ZNP_TAP, ZNP, 'mean')
+ZNP_tmax_exact_mean <- exact_extract(ZNP_mean_tmax, ZNP, 'mean')
+ZNP_tmin_exact_mean <- exact_extract(ZNP_mean_tmin, ZNP, 'mean')
+
+```
+
+## Display Calculated Values
+
+```{r message=FALSE, warning=FALSE}
+
+# Display the results for ANP
+cat("Acadia National Park (ANP):\n")
+cat("Mean annual precipitation:", round(ANP_TAP_exact_mean, 2), "mm\n")
+cat("Mean annual maximum temperature:", round(ANP_tmax_exact_mean, 2), "°C\n")
+cat("Mean annual minimum temperature:", round(ANP_tmin_exact_mean, 2), "°C\n\n")
+
+# Display the results for ZNP
+cat("Zion National Park (ZNP):\n")
+cat("Mean annual precipitation:", round(ZNP_TAP_exact_mean, 2), "mm\n")
+cat("Mean annual maximum temperature:", round(ZNP_tmax_exact_mean, 2), "°C\n")
+cat("Mean annual minimum temperature:", round(ZNP_tmin_exact_mean, 2), "°C\n")
+
+```
+
+## Plot Climate Data and Park Boundaries
+
+```{r fig.width=15, fig.height=15, message=FALSE, warning=FALSE}
+
+# Common theme adjustments
+common_theme <- theme_minimal() +
+  theme(
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5, size = 14),
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  )
+
+# Visualization for ANP
+# Precipitation
+ANP_precip_plot <- ggplot() +
+  geom_spatraster(data = exact_ANP_TAP) +
+  geom_sf(data = ANP, fill = NA, color = "black", linewidth = 0.5) +
+  scale_fill_viridis_c(option = "H", na.value = NA) +
+  labs(title = "Acadia National Park: Total Annual Precipitation", fill = "Precipitation (mm)") +
+  coord_sf(expand = FALSE) +
+  common_theme
+
+# Maximum Temperature
+ANP_tmax_plot <- ggplot() +
+  geom_spatraster(data = exact_ANP_tmax) +
+  geom_sf(data = ANP, fill = NA, color = "black", linewidth = 0.5) +
+  scale_fill_viridis_c(option = "H", na.value = NA) +
+  labs(title = "Acadia National Park: Mean Annual Max Temperature", fill = "Temperature (°C)") +
+  coord_sf(expand = FALSE) +
+  common_theme
+
+# Minimum Temperature
+ANP_tmin_plot <- ggplot() +
+  geom_spatraster(data = exact_ANP_tmin) +
+  geom_sf(data = ANP, fill = NA, color = "black", linewidth = 0.5) +
+  scale_fill_viridis_c(option = "H", na.value = NA) +
+  labs(title = "Acadia National Park: Mean Annual Min Temperature", fill = "Temperature (°C)") +
+  coord_sf(expand = FALSE) +
+  common_theme
+
+# Arrange ANP plots
+
+ANP_Climate <- ggarrange(ANP_precip_plot, ANP_tmax_plot, ANP_tmin_plot, ncol = 1)
+
+##############################################################################
+
+# Visualization for ZNP
+# Precipitation
+ZNP_precip_plot <- ggplot() +
+  geom_spatraster(data = exact_ZNP_TAP) +
+  geom_sf(data = ZNP, fill = NA, color = "black", linewidth = 0.5) +
+  scale_fill_viridis_c(option = "H", na.value = NA) +
+  labs(title = "Zion National Park: Total Annual Precipitation", fill = "Precipitation (mm)") +
+  coord_sf(expand = FALSE) +
+  common_theme
+
+# Maximum Temperature
+ZNP_tmax_plot <- ggplot() +
+  geom_spatraster(data = exact_ZNP_tmax) +
+  geom_sf(data = ZNP, fill = NA, color = "black", linewidth = 0.5) +
+  scale_fill_viridis_c(option = "H", na.value = NA) +
+  labs(title = "Zion National Park: Mean Annual Max Temperature", fill = "Temperature (°C)") +
+  coord_sf(expand = FALSE) +
+  common_theme
+
+# Minimum Temperature
+ZNP_tmin_plot <- ggplot() +
+  geom_spatraster(data = exact_ZNP_tmin) +
+  geom_sf(data = ZNP, fill = NA, color = "black", linewidth = 0.5) +
+  scale_fill_viridis_c(option = "H", na.value = NA) +
+  labs(title = "Zion National Park: Mean Annual Min Temperature", fill = "Temperature (°C)") +
+  coord_sf(expand = FALSE) +
+  common_theme
+
+# Arrange ZNP plots
+
+ZNP_Climate <- ggarrange(ZNP_precip_plot, ZNP_tmax_plot, ZNP_tmin_plot, ncol = 1)
+
+
+# Combine all plots
+ANP_ZNP_Climate <-  ggarrange(ANP_Climate, ZNP_Climate, ncol = 2)
+print(ANP_ZNP_Climate)
+
+# save combined plots as an image
+ggsave('ANP_ZNP_Climate.png', ANP_ZNP_Climate,  width = 15, height = 15, units = "in", dpi = 300)
+
+
+```
+
+
+
